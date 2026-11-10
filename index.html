@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пульт хаосу</title>
+<style>
+  :root {
+    --bg1: #0f0c29;
+    --bg2: #302b63;
+    --bg3: #24243e;
+    --text: #f5f3ff;
+    --muted: #b9b4e0;
+    --accent: #ff6ec7;
+    --accent2: #7afcff;
+    --card: rgba(255, 255, 255, 0.08);
+    --border: rgba(255, 255, 255, 0.18);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg1: #ffe6f7;
+      --bg2: #e6f7ff;
+      --bg3: #fff7e6;
+      --text: #1b1036;
+      --muted: #55497a;
+      --card: rgba(255, 255, 255, 0.6);
+      --border: rgba(27, 16, 54, 0.12);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: linear-gradient(135deg, var(--bg1), var(--bg2), var(--bg3));
+    background-size: 300% 300%;
+    animation: drift 18s ease infinite;
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    overflow-x: hidden;
+  }
+  @keyframes drift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  canvas#fx {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+  }
+  main {
+    position: relative; z-index: 1;
+    max-width: 880px; margin: 0 auto;
+    padding: 48px 16px 64px;
+  }
+  header { text-align: center; }
+  h1 {
+    font-size: clamp(2.4rem, 8vw, 4.5rem);
+    line-height: 1.05;
+    margin: 0 0 12px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent));
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shine 4s linear infinite;
+  }
+  @keyframes shine { to { background-position: 200% center; } }
+  .sub { color: var(--muted); font-size: 1.1rem; margin: 0; }
+
+  .blob {
+    width: 180px; height: 180px; margin: 32px auto 8px;
+    border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+    background: conic-gradient(from 0deg, var(--accent), var(--accent2), #ffd166, var(--accent));
+    box-shadow: 0 0 60px rgba(255, 110, 199, 0.45);
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    animation: morph 8s ease-in-out infinite, spin 12s linear infinite;
+    user-select: none;
+  }
+  .blob:hover { transform: scale(1.08); }
+  .blob:active { transform: scale(0.94); }
+  @keyframes morph {
+    0%, 100% { border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%; }
+    50% { border-radius: 70% 30% 40% 60% / 60% 40% 60% 40%; }
+  }
+  @keyframes spin { to { filter: hue-rotate(360deg); } }
+  .hint { text-align: center; color: var(--muted); font-size: 0.95rem; margin-top: 8px; }
+
+  .grid {
+    display: grid; gap: 16px; margin-top: 40px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 22px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  }
+  .card h2 { margin: 0 0 10px; font-size: 1.2rem; }
+  .card p { margin: 0 0 14px; color: var(--muted); line-height: 1.5; }
+
+  button {
+    font: inherit; cursor: pointer;
+    color: var(--text);
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border: 0; border-radius: 999px;
+    padding: 11px 20px;
+    font-weight: 600;
+    box-shadow: 0 6px 18px rgba(255, 110, 199, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(122, 252, 255, 0.35); }
+  button:active { transform: translateY(1px); }
+  button:focus-visible { outline: 3px solid var(--accent2); outline-offset: 3px; }
+  button.ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+
+  #fortune {
+    min-height: 3.2em;
+    font-size: 1.15rem;
+    font-weight: 500;
+    margin: 0 0 14px;
+    transition: opacity 0.3s ease;
+  }
+  .counter {
+    font-size: 2.6rem; font-weight: 800; margin: 0 0 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  footer {
+    text-align: center; color: var(--muted);
+    margin-top: 48px; font-size: 0.9rem;
+  }
+
+  .pop {
+    position: fixed; pointer-events: none; z-index: 2;
+    font-size: 1.6rem; font-weight: 800;
+    animation: pop 1s ease-out forwards;
+  }
+  @keyframes pop {
+    to { transform: translate(var(--dx), -140px) rotate(var(--rot)) scale(0.6); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<main>
+  <header>
+    <h1>Пульт хаосу</h1>
+    <p class="sub">Тицяй на кляксу, тягни мишкою і не питай навіщо.</p>
+    <div class="blob" id="blob" role="button" tabindex="0" aria-label="Випадковий фейєрверк"></div>
+    <p class="hint">Клікни на кляксу, щоб запустити феєрверк 🎆</p>
+  </header>
+
+  <section class="grid">
+    <article class="card">
+      <h2>🔮 Куля передбачень</h2>
+      <p id="fortune">Задай питання в думках і натисни кнопку.</p>
+      <div class="row">
+        <button id="fortuneBtn">Дізнатися</button>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>🖱️ Лічильник тицяння</h2>
+      <p>Скільки разів ти вже тицьнув у кнопку. Не зупиняйся.</p>
+      <div class="counter" id="count">0</div>
+      <div class="row">
+        <button id="countBtn">Тицьни</button>
+        <button class="ghost" id="resetBtn">Скинути</button>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>🎨 Генератор настрою</h2>
+      <p>Перемішує палітру фону, поки ти не знайдеш свій колір.</p>
+      <div class="row">
+        <button id="colorBtn">Нова палітра</button>
+      </div>
+    </article>
+  </section>
+
+  <footer>Зроблено з цікавості. Лапки на спільну справу. ✨</footer>
+</main>
+
+<script>
+(() => {
+  // ---------- Фон: плаваючі частинки, що реагують на мишку ----------
+  const canvas = document.getElementById('fx');
+  const ctx = canvas.getContext('2d');
+  let w, h, dpr;
+  const particles = [];
+  const mouse = { x: -9999, y: -9999 };
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = canvas.width = innerWidth * dpr;
+    h = canvas.height = innerHeight * dpr;
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+  }
+
+  function makeParticle() {
+    return {
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: (Math.random() * 2.2 + 0.6) * dpr,
+      vx: (Math.random() - 0.5) * 0.4 * dpr,
+      vy: (Math.random() - 0.5) * 0.4 * dpr,
+      hue: Math.random() * 360,
+    };
+  }
+
+  function init() {
+    resize();
+    particles.length = 0;
+    const count = Math.min(140, Math.floor((innerWidth * innerHeight) / 9000));
+    for (let i = 0; i < count; i++) particles.push(makeParticle());
+  }
+
+  function frame() {
+    ctx.clearRect(0, 0, w, h);
+    const mx = mouse.x * dpr, my = mouse.y * dpr;
+    for (const p of particles) {
+      const dx = p.x - mx, dy = p.y - my;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < 140 * 140 * dpr * dpr) {
+        const f = (1 - Math.sqrt(d2) / (140 * dpr)) * 0.6;
+        p.vx += (dx / Math.sqrt(d2 + 1)) * f;
+        p.vy += (dy / Math.sqrt(d2 + 1)) * f;
+      }
+      p.vx *= 0.98; p.vy *= 0.98;
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+      p.hue = (p.hue + 0.3) % 360;
+      ctx.beginPath();
+      ctx.fillStyle = `hsla(${p.hue}, 100%, 75%, 0.7)`;
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  addEventListener('resize', init);
+  addEventListener('pointermove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+  init();
+  if (!reduceMotion) requestAnimationFrame(frame);
+
+  // ---------- Хелпери ----------
+  const $ = id => document.getElementById(id);
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  // ---------- Феєрверк / емодзі-конфеті ----------
+  const emojis = ['🎉', '✨', '🌈', '🦄', '🍕', '🚀', '💜', '🪩', '🫧', '🌟'];
+  function burst(x, y, n = 14) {
+    for (let i = 0; i < n; i++) {
+      const el = document.createElement('div');
+      el.className = 'pop';
+      el.textContent = pick(emojis);
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.setProperty('--dx', rand(-120, 120) + 'px');
+      el.style.setProperty('--rot', rand(-360, 360) + 'deg');
+      document.body.appendChild(el);
+      el.addEventListener('animationend', () => el.remove());
+    }
+  }
+
+  const blob = $('blob');
+  function blobBurst() {
+    const r = blob.getBoundingClientRect();
+    burst(r.left + r.width / 2, r.top + r.height / 2, 18);
+  }
+  blob.addEventListener('click', blobBurst);
+  blob.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); blobBurst(); }
+  });
+
+  // ---------- Куля передбачень ----------
+  const fortunes = [
+    'Так. Але спершу випий води 💧',
+    'Зірки кажуть «ні», але зірки не завжди праві 🌙',
+    'Спробуй. Найгірше, що станеться, — буде історія.',
+    'Сьогодні ідеальний день, щоб відкласти це на завтра 🛋️',
+    'Так, і це буде краще, ніж ти думаєш.',
+    'Питання не те. Питай інакше 🤔',
+    'Варто. Але з печивком буде ще краще 🍪',
+    'Відповідь у тобі. Куля просто мовчить із поваги.',
+    'Ні. Але ти вже знаєш, що треба зробити 😉',
+    'Шанси 73%. Решта 27% — це пригода 🎲',
+  ];
+  let lastFortune = -1;
+  $('fortuneBtn').addEventListener('click', () => {
+    let i;
+    do { i = Math.floor(Math.random() * fortunes.length); } while (i === lastFortune);
+    lastFortune = i;
+    const el = $('fortune');
+    el.style.opacity = 0;
+    setTimeout(() => { el.textContent = fortunes[i]; el.style.opacity = 1; }, 180);
+    const r = $('fortuneBtn').getBoundingClientRect();
+    burst(r.left + r.width / 2, r.top, 6);
+  });
+
+  // ---------- Лічильник ----------
+  let count = Number(localStorage.getItem('tapCount') || 0) || 0;
+  const countEl = $('count');
+  const renderCount = () => { countEl.textContent = count; };
+  function save() { try { localStorage.setItem('tapCount', String(count)); } catch (_) {} }
+  renderCount();
+  $('countBtn').addEventListener('click', e => {
+    count++;
+    renderCount();
+    save();
+    const r = e.currentTarget.getBoundingClientRect();
+    burst(r.left + r.width / 2, r.top, 3);
+    if (count % 50 === 0) burst(innerWidth / 2, innerHeight / 2, 30);
+  });
+  $('resetBtn').addEventListener('click', () => {
+    count = 0; renderCount(); save();
+  });
+
+  // ---------- Генератор палітри ----------
+  const root = document.documentElement;
+  $('colorBtn').addEventListener('click', () => {
+    const h1 = Math.floor(rand(0, 360));
+    const h2 = (h1 + rand(60, 180)) % 360;
+    const h3 = (h2 + rand(30, 90)) % 360;
+    root.style.setProperty('--bg1', `hsl(${h1} 60% 12%)`);
+    root.style.setProperty('--bg2', `hsl(${h2} 55% 25%)`);
+    root.style.setProperty('--bg3', `hsl(${h3} 50% 18%)`);
+    root.style.setProperty('--accent', `hsl(${h2} 100% 70%)`);
+    root.style.setProperty('--accent2', `hsl(${h1} 100% 75%)`);
+    const r = $('colorBtn').getBoundingClientRect();
+    burst(r.left + r.width / 2, r.top, 10);
+  });
+})();
+</script>
+</body>
+</html>
