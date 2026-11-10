@@ -1,0 +1,554 @@
+<title>Нічний ставок</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;600;700&display=swap">
+<style>
+  /* Layout: full-screen living pond on canvas; a quiet title at the top and a thumb-reach control bar at the bottom. Single deliberate night look. */
+  :root {
+    --deep: #041a1b;
+    --water: #0b3a38;
+    --moon: #f3ead2;
+    --koi: #ff7a2f;
+    --ink: #e8f1ec;
+    --muted: #9dbbb2;
+    --glass: rgba(4, 26, 27, 0.62);
+    --line: rgba(232, 241, 236, 0.16);
+    --font-display: "Unbounded", "Trebuchet MS", system-ui, sans-serif;
+    --font-body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--deep);
+    color: var(--ink);
+    font-family: var(--font-body);
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  canvas#pond {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    cursor: crosshair;
+    touch-action: none;
+  }
+  .hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 18px);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    pointer-events: none;
+    display: flex; flex-direction: column; gap: 8px;
+    max-width: 560px;
+  }
+  .hud h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(1.5rem, 6vw, 2.3rem);
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+    color: var(--moon);
+    text-wrap: balance;
+    text-shadow: 0 2px 24px rgba(243, 234, 210, 0.25);
+  }
+  .hud p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    max-width: 38ch;
+  }
+  .stats {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 4px;
+  }
+  .chip {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-variant-numeric: tabular-nums;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .chip b { color: var(--koi); font-weight: 700; }
+
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex; justify-content: center; flex-wrap: wrap; gap: 10px;
+    pointer-events: none;
+  }
+  .bar button {
+    pointer-events: auto;
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--ink);
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 12px 18px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .bar button.primary {
+    background: var(--koi);
+    border-color: var(--koi);
+    color: var(--deep);
+  }
+  .bar button:hover { transform: translateY(-2px); }
+  .bar button:active { transform: translateY(1px); }
+  .bar button:focus-visible { outline: 3px solid var(--moon); outline-offset: 3px; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 86px);
+    transform: translate(-50%, 12px);
+    max-width: calc(100% - 32px);
+    background: var(--moon);
+    color: var(--deep);
+    font-weight: 700;
+    font-size: 0.92rem;
+    padding: 10px 16px;
+    border-radius: 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bar button, .toast { transition: none; }
+  }
+</style>
+
+<canvas id="pond" aria-label="Ставок з рибками. Торкніться води, щоб кинути корм."></canvas>
+
+<header class="hud">
+  <h1>Нічний ставок</h1>
+  <p>Тапни по воді, щоб кинути корм. Коропи трохи злякаються, але голод сильніший.</p>
+  <div class="stats">
+    <span class="chip">Коропів: <b id="fishCount">0</b></span>
+    <span class="chip">З'їдено крихт: <b id="eatenCount">0</b></span>
+  </div>
+</header>
+
+<nav class="bar">
+  <button class="primary" id="addFish" type="button">Запустити рибку</button>
+  <button id="handful" type="button">Кинути жменю</button>
+  <button id="scare" type="button">Наполохати всіх</button>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const TAU = Math.PI * 2;
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const SPEED = reduceMotion ? 0.55 : 1;
+  const MAX_FISH = 30;
+
+  const cv = document.getElementById('pond');
+  const ctx = cv.getContext('2d');
+  const bg = document.createElement('canvas');
+  const bgx = bg.getContext('2d');
+  let W = 0, H = 0, dpr = 1;
+
+  const palettes = [
+    { body: '#ff7a2f', spot: '#fff4e6' },   // кохаку
+    { body: '#fff4e6', spot: '#ff5a1f' },   // тайсьо
+    { body: '#ffc23d', spot: '#ff7a2f' },   // ямабукі
+    { body: '#f5f0e6', spot: '#1d2422' },   // сіро
+    { body: '#e8462a', spot: '#ffd9a8' },   // хі
+  ];
+  const names = ['Борщик', 'Галушка', 'Пан Карась', 'Зоря', 'Тарас', 'Ліна', 'Кекс',
+    'Маруся', 'Бульбаш', 'Сонько', 'Вареничок', 'Мавка', 'Остап', 'Квасоля', 'Шпротик'];
+
+  let fish = [], food = [], ripples = [], pads = [], flies = [];
+  let eaten = 0;
+  try { eaten = Number(localStorage.getItem('pond-eaten')) || 0; } catch (_) {}
+
+  const $ = id => document.getElementById(id);
+  const fishCountEl = $('fishCount');
+  const eatenEl = $('eatenCount');
+  function renderStats() {
+    fishCountEl.textContent = fish.length;
+    eatenEl.textContent = eaten;
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  // ---------- Сцена ----------
+  function buildBackground() {
+    bg.width = W * dpr; bg.height = H * dpr;
+    bgx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = bgx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.max(W, H) * 0.75);
+    g.addColorStop(0, '#0e4744');
+    g.addColorStop(0.55, '#0b3a38');
+    g.addColorStop(1, '#041a1b');
+    bgx.fillStyle = g;
+    bgx.fillRect(0, 0, W, H);
+
+    // Відблиск місяця на воді
+    const mx = W * 0.76, my = H * 0.3;
+    bgx.save();
+    bgx.translate(mx, my);
+    bgx.scale(1, 2.6);
+    const m = bgx.createRadialGradient(0, 0, 0, 0, 0, Math.min(W, H) * 0.16);
+    m.addColorStop(0, 'rgba(243, 234, 210, 0.28)');
+    m.addColorStop(1, 'rgba(243, 234, 210, 0)');
+    bgx.fillStyle = m;
+    bgx.beginPath();
+    bgx.arc(0, 0, Math.min(W, H) * 0.16, 0, TAU);
+    bgx.fill();
+    bgx.restore();
+
+    // Камінці на дні
+    for (let i = 0; i < Math.round(W * H / 6000); i++) {
+      bgx.fillStyle = `rgba(150, 190, 175, ${rand(0.03, 0.08)})`;
+      bgx.beginPath();
+      bgx.ellipse(rand(0, W), rand(0, H), rand(3, 10), rand(2, 7), rand(0, TAU), 0, TAU);
+      bgx.fill();
+    }
+  }
+
+  function buildPads() {
+    pads = [];
+    const count = clamp(Math.round(W * H / 80000) + 3, 4, 14);
+    for (let i = 0; i < count; i++) {
+      pads.push({
+        x: rand(0, W), y: rand(H * 0.18, H * 0.85),
+        r: rand(24, 56), rot: rand(0, TAU),
+        spin: rand(-0.0006, 0.0006),
+        flower: Math.random() < 0.3,
+      });
+    }
+  }
+
+  function buildFlies() {
+    flies = [];
+    for (let i = 0; i < 14; i++) {
+      flies.push({ x: rand(0, W), y: rand(0, H), vx: rand(-0.25, 0.25), vy: rand(-0.25, 0.25), phase: rand(0, TAU) });
+    }
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buildBackground();
+    buildPads();
+    if (!flies.length) buildFlies();
+    for (const f of fish) { f.x = clamp(f.x, 20, W - 20); f.y = clamp(f.y, 20, H - 20); }
+  }
+
+  // ---------- Рибки ----------
+  function makeFish(x, y, a) {
+    const size = rand(7, 12);
+    const f = {
+      x, y, a: a ?? rand(0, TAU),
+      v: rand(0.6, 1.1), size, trail: [],
+      pal: pick(palettes),
+      pattern: Array.from({ length: 13 }, () => Math.random() < 0.4),
+      boost: 0, phase: rand(0, TAU),
+      name: pick(names),
+    };
+    for (let i = 1; i <= 12; i++) {
+      f.trail.push({ x: x - Math.cos(f.a) * size * 0.4 * i, y: y - Math.sin(f.a) * size * 0.4 * i });
+    }
+    return f;
+  }
+
+  function turnToward(f, desired, rate, dt) {
+    const diff = ((desired - f.a + Math.PI * 3) % TAU) - Math.PI;
+    f.a += clamp(diff, -rate * dt, rate * dt);
+  }
+
+  function updateFish(f, dt, time) {
+    let target = null, best = Infinity;
+    for (const p of food) {
+      const d2 = (p.x - f.x) ** 2 + (p.y - f.y) ** 2;
+      if (d2 < best) { best = d2; target = p; }
+    }
+
+    f.a += (Math.random() - 0.5) * 0.08 * dt;
+    if (target && f.boost < 1) turnToward(f, Math.atan2(target.y - f.y, target.x - f.x), 0.07, dt);
+
+    const m = 60;
+    if (f.x < m || f.x > W - m || f.y < m || f.y > H - m) {
+      turnToward(f, Math.atan2(H / 2 - f.y, W / 2 - f.x), 0.06, dt);
+    }
+
+    const speed = f.v * (target ? 1.5 : 1) * (1 + f.boost) * SPEED;
+    f.boost *= Math.pow(0.95, dt);
+    f.x += Math.cos(f.a) * speed * dt;
+    f.y += Math.sin(f.a) * speed * dt;
+
+    if (target && Math.sqrt(best) < f.size) {
+      food.splice(food.indexOf(target), 1);
+      eaten++;
+      f.size = Math.min(f.size + 0.12, 16);
+      ripples.push({ x: target.x, y: target.y, r: 2, alpha: 0.45 });
+      renderStats();
+      try { localStorage.setItem('pond-eaten', String(eaten)); } catch (_) {}
+    }
+
+    const last = f.trail[0];
+    if (Math.hypot(f.x - last.x, f.y - last.y) > f.size * 0.38) {
+      f.trail.unshift({ x: f.x, y: f.y });
+      if (f.trail.length > 12) f.trail.pop();
+    }
+  }
+
+  function drawFish(f, time) {
+    const pts = [{ x: f.x, y: f.y }, ...f.trail];
+    const n = pts.length;
+    const radius = i => f.size * (i < 2 ? 0.8 + 0.1 * i : 1 - ((i - 2) / (n - 2)) * 0.8);
+
+    // Тінь на дні
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    for (let i = n - 1; i >= 0; i--) {
+      ctx.beginPath();
+      ctx.arc(pts[i].x + 6, pts[i].y + 8, radius(i), 0, TAU);
+      ctx.fill();
+    }
+
+    // Плавці
+    const p1 = pts[1], p3 = pts[3];
+    const dir = Math.atan2(p1.y - p3.y, p1.x - p3.x);
+    const flap = Math.sin(time * 0.01 + f.phase) * 0.35;
+    ctx.fillStyle = f.pal.body;
+    ctx.globalAlpha = 0.55;
+    for (const side of [-1, 1]) {
+      const fx = pts[2].x + Math.cos(dir + side * Math.PI / 2) * f.size * 0.85;
+      const fy = pts[2].y + Math.sin(dir + side * Math.PI / 2) * f.size * 0.85;
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, f.size * 0.7, f.size * 0.3, dir + side * (0.7 + flap), 0, TAU);
+      ctx.fill();
+    }
+
+    // Хвіст
+    const pe = pts[n - 1], pp = pts[n - 2];
+    const td = Math.atan2(pe.y - pp.y, pe.x - pp.x) + Math.sin(time * 0.012 + f.phase) * 0.45;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(pe.x, pe.y);
+    ctx.lineTo(pe.x + Math.cos(td + 0.55) * f.size * 1.5, pe.y + Math.sin(td + 0.55) * f.size * 1.5);
+    ctx.lineTo(pe.x + Math.cos(td) * f.size * 0.8, pe.y + Math.sin(td) * f.size * 0.8);
+    ctx.lineTo(pe.x + Math.cos(td - 0.55) * f.size * 1.5, pe.y + Math.sin(td - 0.55) * f.size * 1.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Тіло
+    for (let i = n - 1; i >= 0; i--) {
+      ctx.beginPath();
+      ctx.arc(pts[i].x, pts[i].y, radius(i), 0, TAU);
+      ctx.fill();
+    }
+
+    // Плями
+    ctx.fillStyle = f.pal.spot;
+    for (let i = 1; i < n - 2; i++) {
+      if (!f.pattern[i]) continue;
+      const r = radius(i);
+      const off = (i % 2 ? 1 : -1) * r * 0.25;
+      ctx.beginPath();
+      ctx.arc(pts[i].x + Math.cos(dir + Math.PI / 2) * off, pts[i].y + Math.sin(dir + Math.PI / 2) * off, r * 0.6, 0, TAU);
+      ctx.fill();
+    }
+
+    // Очі
+    ctx.fillStyle = '#10201d';
+    for (const side of [-1, 1]) {
+      const ex = f.x + Math.cos(f.a) * f.size * 0.35 + Math.cos(f.a + side * Math.PI / 2) * f.size * 0.45;
+      const ey = f.y + Math.sin(f.a) * f.size * 0.35 + Math.sin(f.a + side * Math.PI / 2) * f.size * 0.45;
+      ctx.beginPath();
+      ctx.arc(ex, ey, Math.max(1.2, f.size * 0.12), 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  // ---------- Латаття та світлячки ----------
+  function drawPad(p) {
+    p.rot += p.spin;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.beginPath();
+    ctx.arc(p.x + 5, p.y + 7, p.r, 0, TAU);
+    ctx.fill();
+
+    ctx.fillStyle = '#2f6b3a';
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.arc(p.x, p.y, p.r, p.rot + 0.22, p.rot + TAU - 0.22);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(160, 210, 140, 0.25)';
+    ctx.lineWidth = 1;
+    for (let k = 1; k < 6; k++) {
+      const a = p.rot + 0.22 + k * (TAU - 0.44) / 6;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + Math.cos(a) * p.r * 0.85, p.y + Math.sin(a) * p.r * 0.85);
+      ctx.stroke();
+    }
+
+    if (p.flower) {
+      const cx = p.x + Math.cos(p.rot + Math.PI) * p.r * 0.3;
+      const cy = p.y + Math.sin(p.rot + Math.PI) * p.r * 0.3;
+      for (let k = 0; k < 8; k++) {
+        const a = k * TAU / 8 + p.rot;
+        ctx.fillStyle = k % 2 ? '#f7c6d9' : '#fbe3ec';
+        ctx.beginPath();
+        ctx.ellipse(cx + Math.cos(a) * 6, cy + Math.sin(a) * 6, 8, 4, a, 0, TAU);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffd34d';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3.5, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  function drawFlies(dt, time) {
+    for (const f of flies) {
+      f.vx += (Math.random() - 0.5) * 0.03; f.vy += (Math.random() - 0.5) * 0.03;
+      f.vx = clamp(f.vx, -0.4, 0.4); f.vy = clamp(f.vy, -0.4, 0.4);
+      f.x = (f.x + f.vx * dt * SPEED + W) % W;
+      f.y = (f.y + f.vy * dt * SPEED + H) % H;
+      const glow = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 0.003 + f.phase));
+      const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 12);
+      g.addColorStop(0, `rgba(255, 236, 140, ${0.9 * glow})`);
+      g.addColorStop(1, 'rgba(255, 236, 140, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, 12, 0, TAU);
+      ctx.fill();
+    }
+  }
+
+  // ---------- Головний цикл ----------
+  let lastT = performance.now();
+  function frame(t) {
+    const dt = Math.min((t - lastT) / 16.67, 3);
+    lastT = t;
+
+    ctx.drawImage(bg, 0, 0, W, H);
+
+    for (let i = food.length - 1; i >= 0; i--) {
+      const p = food[i];
+      p.life -= dt / (60 * 14);
+      p.x += Math.sin(t * 0.001 + p.seed) * 0.05 * dt;
+      if (p.life <= 0) { food.splice(i, 1); continue; }
+      ctx.fillStyle = `rgba(231, 207, 154, ${clamp(p.life * 3, 0, 1)})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.6, 0, TAU);
+      ctx.fill();
+    }
+
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const r = ripples[i];
+      r.r += 0.9 * dt;
+      r.alpha -= 0.011 * dt;
+      if (r.alpha <= 0) { ripples.splice(i, 1); continue; }
+      ctx.strokeStyle = `rgba(243, 234, 210, ${r.alpha})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r, 0, TAU);
+      ctx.stroke();
+    }
+
+    for (const f of fish) updateFish(f, dt, t);
+    for (const f of fish) drawFish(f, t);
+    for (const p of pads) drawPad(p);
+    drawFlies(dt, t);
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Дії ----------
+  function dropFood(x, y, n) {
+    for (let i = 0; i < n; i++) {
+      food.push({ x: x + rand(-14, 14), y: y + rand(-14, 14), life: 1, seed: rand(0, TAU) });
+    }
+    ripples.push({ x, y, r: 3, alpha: 0.7 });
+    ripples.push({ x, y, r: 0, alpha: 0.45 });
+  }
+
+  function scareFrom(x, y, radius, power) {
+    for (const f of fish) {
+      const d = Math.hypot(f.x - x, f.y - y);
+      if (d < radius) {
+        f.a = Math.atan2(f.y - y, f.x - x) + rand(-0.4, 0.4);
+        f.boost = power * (1 - d / radius) + 0.5;
+      }
+    }
+  }
+
+  function addFish(announce) {
+    if (fish.length >= MAX_FISH) { toast(`Ставок повний. Тут уже ${MAX_FISH} рибок.`); return; }
+    const edge = Math.floor(rand(0, 4));
+    const x = edge === 0 ? -10 : edge === 1 ? W + 10 : rand(40, W - 40);
+    const y = edge === 2 ? -10 : edge === 3 ? H + 10 : rand(40, H - 40);
+    const f = makeFish(x, y, Math.atan2(H / 2 - y, W / 2 - x));
+    fish.push(f);
+    renderStats();
+    if (announce) toast(`У ставку новенький: ${f.name}`);
+  }
+
+  cv.addEventListener('pointerdown', e => {
+    scareFrom(e.clientX, e.clientY, 110, 2.5);
+    dropFood(e.clientX, e.clientY, 3);
+  });
+
+  $('addFish').addEventListener('click', () => addFish(true));
+  $('handful').addEventListener('click', () => {
+    for (let i = 0; i < 12; i++) {
+      const x = rand(W * 0.15, W * 0.85), y = rand(H * 0.25, H * 0.75);
+      food.push({ x, y, life: 1, seed: rand(0, TAU) });
+      ripples.push({ x, y, r: 1, alpha: 0.35 });
+    }
+    toast('Обід подано!');
+  });
+  $('scare').addEventListener('click', () => {
+    scareFrom(W / 2, H / 2, Math.max(W, H), 3.5);
+    ripples.push({ x: W / 2, y: H / 2, r: 4, alpha: 0.8 });
+    ripples.push({ x: W / 2, y: H / 2, r: 18, alpha: 0.5 });
+    toast('Бульк! Усі врозтіч.');
+  });
+
+  addEventListener('resize', resize);
+  resize();
+  const startCount = clamp(Math.round(W * H / 70000), 5, 10);
+  for (let i = 0; i < startCount; i++) fish.push(makeFish(rand(80, W - 80), rand(120, H - 120)));
+  renderStats();
+  requestAnimationFrame(frame);
+})();
+</script>
